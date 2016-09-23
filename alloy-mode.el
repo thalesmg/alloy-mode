@@ -1,3 +1,5 @@
+;;; alloy-mode.el --- Emacs major mode for Alloy language -*- lexical-binding: t; -*-
+
 ; This is an emacs major mode for Alloy3 that does keyword coloring
 ; and indentation.
 ; Copyright (C) 2002 Allison L Waingold (skippy AT mit DOT edu)
@@ -16,11 +18,12 @@
 ; along with this program; if not, write to the Free Software
 ; Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-;; Author: Allison L Waingold
-;; URL: https://github.com/dwwmmn/alloy-mode
-;; Version: 0.0.1
-;; Package-Requires: ((emacs "24"))
-;; Keywords: alloy modeling
+;;; Author: Allison L Waingold <skippy@mit.edu>
+;;; URL: https://github.com/dwwmmn/alloy-mode
+;;; Version: 0.0.1
+;;; Package-Requires: ((emacs "24"))
+;;; Keywords: alloy modeling
+;;; Description: This is an emacs major mode for Alloy 3
 
 (defvar alloy-font-lock-keywords
   ;; keywords
