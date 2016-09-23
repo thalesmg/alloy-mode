@@ -30,7 +30,7 @@
   `(,(rx symbol-start
          (or "sig" "fun" "det" "let" "extends" "abstract"
              "static" "disj" "option" "set" "all"
-             "one" "some" "sole" "open"
+             "one" "lone" "some" "sole" "open"
              "uses" "run" "check" "eval" "for" "but" "none" "exactly"
              "univ" "iden" "in" "no" "not"
              "with" "sum" "if" "then" "else"
