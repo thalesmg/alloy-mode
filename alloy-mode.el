@@ -16,41 +16,49 @@
 ; along with this program; if not, write to the Free Software
 ; Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-
 (defvar alloy-font-lock-keywords
-  (let ((kw1 (mapconcat 'identity
-            '("sig" "fun" "det" "let" "extends" "abstract"
-              "static" "disj" "option" "set" "all"
-              "one" "some" "sole" "open"
-              "uses" "run" "check" "eval" "for" "but" "none" "exactly"
-              "univ" "iden" "in" "no" "not"
-              "with" "sum" "if" "then" "else"
-              "pred" "iff" "implies"
-              "and" "or" ;; "=>" "=" "+" "-"
-              )
-            "\\|"))
-    (kw2 (mapconcat 'identity
-            '("module" "fact" "assert")
-            "\\|"))
-    )
-    (list
-     ;; keywords
-     (cons (concat "\\b\\(" kw1 "\\)\\b[ \n\t(]") 1)
-     ;; block introducing keywords with immediately following colons.
-     (cons (concat "\\b\\(" kw2 "\\)[ \n\t(]") 1)
-     ;; classes
-     '("\\bsig[ \t]+\\([a-zA-Z_]+[a-zA-Z0-9_]*\\)"
-       1 font-lock-type-face)
-     '("\\bextends[ \t]+\\([a-zA-Z_]+[a-zA-Z0-9_]*\\)"
-       1 font-lock-type-face)
-     ;; functions
-     '("\\bfun[ \t]+\\([a-zA-Z_]+[a-zA-Z0-9_]*\\)"
-       1 font-lock-function-name-face)
-     '("\\bmodule[ \t]+\\([a-zA-Z_]+[a-zA-Z0-9_]*\\)"
-       1 font-lock-function-name-face)
-     ))
-  "Additional expressions to highlight in Alloy mode."
-)
+  ;; keywords
+  `(,(rx symbol-start
+         (or "sig" "fun" "det" "let" "extends" "abstract"
+             "static" "disj" "option" "set" "all"
+             "one" "some" "sole" "open"
+             "uses" "run" "check" "eval" "for" "but" "none" "exactly"
+             "univ" "iden" "in" "no" "not"
+             "with" "sum" "if" "then" "else"
+             "pred" "iff" "implies"
+             "and" "or" ;; "=>" "=" "+" "-"
+             )
+         symbol-end)
+    ;; block introducing keywords with immediately following colons.
+    ,(rx symbol-start
+         (or "module" "fact" "assert")
+         symbol-end)
+    ;; signatures
+    (,(lambda (limit)
+       (let ((sig-start      (rx symbol-start "sig"))
+             (sig-name       (rx symbol-start (and (1+ (or letter digit)) (* (or letter digit ?_)))))
+             (starting-point (point))
+             (res            nil))
+         (setq res (re-search-forward sig-name limit t))
+         (save-match-data
+           (if (re-search-backward sig-start (line-beginning-position) t)
+               (progn
+                 (goto-char starting-point)
+                 res)))))
+     (0 font-lock-type-face))
+    ;; 'extends' keyword in signature definition
+    (,(rx symbol-start "extends" (* blank)
+          (and (1+ (or letter digit)) (* (or letter digit ?_))))
+     (1 font-lock-type-face))
+    ;; function
+    (,(rx symbol-start "fun" (* blank)
+          (and (1+ (or letter digit)) (* (or letter digit ?_))))
+     (1 font-lock-function-name-face))
+    ;; module
+    (,(rx symbol-start (* blank)
+          (and (1+ (or letter digit)) (* (or letter digit ?_))))
+     (1 font-lock-function-name-face))
+    ))
 
 (defvar alloy-mode-map ()
   "Keymap used in `alloy-mode' buffers.")
