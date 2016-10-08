@@ -44,16 +44,16 @@
          symbol-end)
     ;; signatures
     (,(lambda (limit)
-       (let ((sig-start      (rx symbol-start "sig"))
-             (sig-name       (rx symbol-start (and (1+ (or letter digit)) (* (or letter digit ?_)))))
-             (starting-point (point))
-             (res            nil))
-         (setq res (re-search-forward sig-name limit t))
-         (save-match-data
-           (if (re-search-backward sig-start (line-beginning-position) t)
-               (progn
-                 (goto-char starting-point)
-                 res)))))
+        (let ((limit (or (save-excursion (re-search-forward "{" limit t))
+                         limit))
+              (sig-start (rx (zero-or-one (or "lone" "abstract" "one") (+ blank)) "sig"))
+              (sig-name (rx symbol-start
+                            (group (and (1+ (or letter digit))
+                                        (* (or letter digit ?_))))
+                            )))
+          (and (save-excursion (beginning-of-line) (looking-at sig-start))
+               (re-search-forward sig-name limit t)
+               (not (looking-at "{")))))
      (0 font-lock-type-face))
     ;; 'extends' keyword in signature definition
     (,(rx symbol-start "extends" (* blank)
