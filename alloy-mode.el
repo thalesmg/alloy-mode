@@ -123,38 +123,52 @@
   (modify-syntax-entry ?\r "    " alloy-mode-syntax-table)
   (modify-syntax-entry ?\f "    " alloy-mode-syntax-table))
 
+(defconst alloy-indent-expr
+  "[{|]"
+  (rx (any ?{ ?|)))
 
-(defvar alloy-indent-expr "[{|]")
+(defconst alloy-same-indent-expr
+  (rx "&&" "||"))
 
-(defvar same-indent-expr "&&\\|||")
+(defconst alloy-start-inline-comment
+  (rx (or "//" "--"))
+  "Regexp describing start of an alloy comment.")
 
-(defun in-comment()
+(defconst alloy-start-block-comment
+  (rx "/*")
+  "Regexp describing start of an alloy block comment.")
+
+(defconst alloy-end-block-comment
+  (rx "/*")
+  "Regexp describing end of an alloy block comment.")
+
+(defun start-of-line ()
+  "Return the beginning of the line."
+  (- (point) (current-column)))
+
+(defun in-comment ()
   (save-excursion
-    (if (looking-at "//\\|/\\*") ;; if we are at the start of a comment, true
-    t
-      (let ((startpoint (point)))
-    (re-search-backward "//" (- (point) (current-column)) t 1)
-    (if (< (point) startpoint) ;; if there is a // before us in the line
-        t ;; in comment
-      (progn
-        (re-search-backward "/\\*" nil t 1)
-        (if (< (point) startpoint) ;; if there is a /* somewhere before us
-        (let ((opencomm (point)))
-          ;;(insert "before")
-          (goto-char startpoint)
-          (re-search-backward "\\*/" opencomm t 1)
-          (if (< (point) startpoint) ;; and a */ between /* and us
-              nil ;; not in comment
-            t) ;; in comment
-          )
-          )
-        )
-      )
-    )
-      )
-    )
-  )
+    (let ((startpoint (point)))
+      (or
+       ;; We're looking at at comment
+       (looking-at alloy-start-block-comment)
+       (looking-at alloy-start-inline-comment)
 
+       ;; We're inside an inline comment
+       (progn
+         (re-search-backward alloy-start-inline-comment (start-of-line) t 1)
+         (< (point) startpoint))
+
+       ;; We're inside a block comment
+       (progn
+         (goto-char startpoint)
+         (re-search-backward alloy-start-block-comment nil t 1)
+         (if (< (point) startpoint)
+             ;; Make sure there's not a */ between us and the /* we just found.
+             (let ((opencomm (point)))
+               (goto-char startpoint)
+               (re-search-backward alloy-end-block-comment opencomm t 1)
+               (not (< (point) startpoint)))))))))
 
 (defgroup alloy nil
   "Alloy-mode customizations."
@@ -164,97 +178,106 @@
   "Basic indentation offset."
   :type 'integer :group 'alloy)
 
+(defconst regex-printable-chars
+  (rx (not (any "\000-\040")))
+  "Matches characters that are printable.")
 
 (defun alloy-indent-line (&optional whole-exp)
-  "Indent current line as Lisp code.
-With argument, indent any additional lines of the same expression
-rigidly along with this one."
+  "Indent current line as Lisp code. With argument, indent any
+additional lines of the same expression rigidly along with this
+one."
   (interactive "P")
-  (let ((indentcol -1))
+  (let ((indentcol 0))
     (save-excursion
-      (let ((oldpoint (point)) bolast last-indent last-end bol eol
-      (obrace 0) (cbrace 0) (sameindent 0))
-    (when (in-comment)
-      (setq sameindent 1))
-    (beginning-of-line)
-    (setq bol (point))
-    (condition-case nil
-        (re-search-backward "[^\000-\040]")
-      (error (setq indentcol 0)))
-    (when (< indentcol 0)
-      (if (looking-at alloy-indent-expr)
-          (setq obrace 1)
-        (setq obrace 0))
-      (when (looking-at ",")
-          (setq sameindent 1))
-      (when (> (current-column) 0)
-        (backward-char))
-      (when (looking-at "=>")
-          (setq obrace 1))
-      (when (looking-at same-indent-expr)
-        (setq sameindent 1))
-      (beginning-of-line)
-      (setq bolast (current-column))
-      (re-search-forward "[^\000-\040]")
-      (backward-char)
-      (setq last-indent (- (current-column) bolast))
-      (goto-char oldpoint)
-      (end-of-line)
-      (setq eol (point))
-      (beginning-of-line)
-      (re-search-forward "[^\000-\040]" eol t 1)
-      (if (> (point) bol) (backward-char) nil)
-      (if (looking-at "}")
-          (setq cbrace 1)
-        (setq cbrace 0))
-      (when (looking-at "{")
-        (setq sameindent 1))
-      (if (= sameindent 1)
-          (setq indentcol last-indent)
-        (if (= obrace 1)
-        (if (= cbrace 1)
-            (setq indentcol last-indent)
-          (setq indentcol (+ last-indent alloy-basic-offset)))
-          ;; if there isn't an opening brace at the end of the last row,
-          ;; use the nearest enclosing sexp to determine indentation
-          ;; if the enclosing sexp starts with ( or [
-          (save-excursion
+      (let ((oldpoint (point))          ; Save point before doing anything
+            (obrace 0)                  ; Opening brace at the end of the last line?
+            (cbrace 0)                  ; Closing brace at end of our line?
+            (sameindent nil)            ; Should we indent the same as the above line?
+            comment-block               ; Did we hit a comment block?
+            bolast last-indent last-end bol eol
+            )
+        (setq sameindent (in-comment))
+        (beginning-of-line)
+        (setq bol (point))
         (condition-case nil
+            ;; This puts us at the last char on the line above.
+            (re-search-backward regex-printable-chars)
+          (error (setq indentcol 0)))
+        (when (not sameindent)
+          ;; Looking at previous line
+          (setq obrace (looking-at alloy-indent-expr)
+                sameindent (looking-at ",")
+                comment-block (looking-at "/"))
+          (when comment-block
+            ;; Skip over comments, their indentation is different.
             (progn
-              (up-list 1)
-              (backward-sexp 1)
-              (if (looking-at "[\\(]")
-              (setq indentcol (+ 1 (current-column)))
-            ;; if enclosing sexp starts with {, indent three from the line
-            ;; with the {
-            (progn
-              (beginning-of-line)
-              (re-search-forward "[^\000-\040]")
-              (backward-char)
-              (if (= cbrace 1)
-                  (setq indentcol (current-column))
-                (setq indentcol (+ alloy-basic-offset (current-column)))))))
-          (error (setq indentcol last-indent)))
-        )))
+              (re-search-backward alloy-start-block-comment nil t 1)
+              (re-search-backward regex-printable-chars nil t 1)))
+          (when (> (current-column) 0) (backward-char))
+          (when (looking-at "=>") (setq obrace t))
+          (when (looking-at alloy-same-indent-expr) (setq sameindent t))
+          (beginning-of-line)
+          (setq bolast (current-column))
+          (re-search-forward regex-printable-chars)
+          (backward-char)
+          (setq last-indent (- (current-column) bolast))
+          ;; Looking at current line
+          (goto-char oldpoint)
+          (end-of-line)
+          (setq eol (point))
+          (beginning-of-line)
+          (re-search-forward regex-printable-chars eol t 1)
+          (when (> (point) bol)
+            (backward-char))
+          (setq cbrace (looking-at "}")
+                sameindent (looking-at "{"))
+          ;; Now we decide what indentation we want.
+          (if sameindent
+              (setq indentcol last-indent)
+            (if obrace
+                (if cbrace
+                    (setq indentcol last-indent)
+                  (setq indentcol (+ last-indent alloy-basic-offset)))
 
-      )
-    (if (> (current-column) indentcol)
-        (delete-region bol (point))
-      ())
-    (indent-to indentcol)
+              ;; If there isn't an opening brace at the end of the last line,
+              ;; use the nearest enclosing sexp to determine indentation.
+              (save-excursion
+                (condition-case nil
+                    (progn
+                      (up-list 1)
+                      (backward-sexp 1)
+
+                      ;; If the enclosing sexp starts with ( or [
+                      (if (looking-at "[\\(]")
+                          (setq indentcol (+ 1 (current-column)))
+
+                        ;; If enclosing sexp starts with {, indent from the line
+                        ;; with the {
+                        (progn
+                          (beginning-of-line)
+                          (re-search-forward regex-printable-chars)
+                          (backward-char)
+                          (setq indentcol
+                                (if cbrace
+                                    (current-column)
+                                  (+ alloy-basic-offset (current-column)))))))
+                (error (setq indentcol last-indent)))))))
+        ;; Remove old indentation if needed
+        (when (> (current-column) indentcol)
+          (delete-region bol (point)))
+        (indent-to indentcol)))
+    ;; Position the point conveniently for the user
+    (when (< (current-column) indentcol)
+      (move-to-column indentcol))
+    ;; TODO is this needed?
+    nil
     ))
-    (if (< (current-column) indentcol)
-    (move-to-column indentcol)
-      nil
-      )
-    )
-  )
 
 (defvar alloy-mode-hook nil
   "*List of functions to call when Alloy mode is invoked.
 This hook is automatically executed after the `alloy-mode' is
-fully loaded.
-This is a good place to add Alloy environment specific bindings.")
+fully loaded. This is a good place to add Alloy environment
+specific bindings.")
 
 ;;;###autoload
 (define-derived-mode alloy-mode prog-mode "Alloy"
