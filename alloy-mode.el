@@ -297,7 +297,7 @@ specific bindings.")
     comment-column          40
     comment-indent-function 'java-comment-indent
     indent-line-function    'alloy-indent-line
-    indent-tabs-mode        f
+    indent-tabs-mode        nil
     tab-width               alloy-basic-offset)
   (use-local-map alloy-mode-map))
 
