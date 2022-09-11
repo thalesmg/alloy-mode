@@ -35,6 +35,9 @@
              "univ" "iden" "in" "no" "not"
              "with" "sum" "if" "then" "else"
              "pred" "iff" "implies"
+             "always" "eventually" "historically"
+             "after" "until" "releases" "once"
+             "since" "triggered" "before"
              "and" "or" ;; "=>" "=" "+" "-"
              )
          symbol-end)
